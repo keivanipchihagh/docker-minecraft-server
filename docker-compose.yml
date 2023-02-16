@@ -1,0 +1,72 @@
+version: "3.7"
+
+x-common:
+  &common
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "100m"
+      max-file: "3"
+
+services:
+  minecraft-server:
+    <<: *common
+    container_name: minecraft-server
+    image: itzg/minecraft-server:java17
+    restart: unless-stopped
+    ports:
+      - 25565:25565
+    healthcheck:
+      test: mc-health
+      start_period: 30s
+      interval: 1m
+      retries: 5
+    environment:
+      EULA: "true"
+      ONLINE_MODE: "false"
+      DIFFICULTY: ${DIFFICULTY:-normal}
+      ENFORCE_WHITELIST: "true"         # Kick players that are not in whitelist after reload
+      MODS_FILE: /extras/mods.txt       # List of server-side mods to download
+      WHITELIST_FILE: /extras/whitelist.json    # List of authorized players
+      OPS_FILE: /extras/ops.json        # List of operators (admins)
+      ICON: /extras/icon.jpeg           # Server icon
+      # Force refresh
+      OVERRIDE_ICON : "true"
+      OVERRIDE_OPS: "true"
+      OVERRIDE_WHITELIST: "true"
+    env_file:
+      - .env
+    volumes:
+      - ./volume/minecraft/data:/data
+      - ./volume/minecraft/modpacks:/modpacks:ro
+      - ./extras:/extras:ro   # Extra configurations
+    networks:
+      - public
+
+  minecraft-server-rcon:
+    <<: *common
+    container_name: minecraft-server-rcon
+    image: itzg/rcon
+    environment:
+      RWA_ADMIN: "TRUE"                 # Set initial user as admin
+      RWA_RCON_HOST: minecraft-server   # Referse to the service name of MC
+      RWA_RCON_PASSWORD: minecraft      # configured password for the container (default: minecraft)
+      RWA_RCON_PORT: 25575
+    env_file:
+      - .env
+    ports:
+      - 4326:4326   # Web UI
+      - 4327:4327   # Websocket access from UI
+    volumes:
+      - ./volume/rcon/data:/opt/rcon-web-admin/db   # WARNING: Password is stored in plain text!
+    networks:
+      - public
+
+
+networks:
+  nginx:
+    name: nginx
+    internal: true
+  public:
+    name: public
+    external: true
